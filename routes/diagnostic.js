@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { analyserDiagnostic } = require('../services/anthropic');
+const { analyserDiagnostic } = require('../services/gemini');
 
 // Normes ISO valides
 const NORMES_VALIDES = [
@@ -49,7 +49,7 @@ router.post('/', async (req, res, next) => {
             });
         }
 
-        // Appel au service Anthropic
+        // Appel au service Gemini
         const resultat = await analyserDiagnostic(norme, description);
 
         res.json({
@@ -57,15 +57,15 @@ router.post('/', async (req, res, next) => {
             data: resultat,
         });
     } catch (error) {
-        // Gestion des erreurs spécifiques du service Anthropic
-        if (error.message?.includes('ANTHROPIC_AUTH_ERROR')) {
+        // Gestion des erreurs spécifiques du service Gemini
+        if (error.message?.includes('GEMINI_AUTH_ERROR')) {
             return res.status(401).json({
                 error: 'AUTH_ERROR',
                 message: 'Erreur d\'authentification avec le service d\'analyse',
             });
         }
 
-        if (error.message?.includes('ANTHROPIC_RATE_LIMIT')) {
+        if (error.message?.includes('GEMINI_RATE_LIMIT')) {
             return res.status(429).json({
                 error: 'RATE_LIMIT',
                 message: 'Trop de requêtes. Veuillez réessayer dans quelques instants.',

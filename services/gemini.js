@@ -1,12 +1,10 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Configuration du client Anthropic
-const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// Configuration du client Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 /**
- * Analyse un diagnostic QSE en appelant Claude Sonnet
+ * Analyse un diagnostic QSE en appelant Gemini Flash
  * @param {string} norme - La norme ISO (ISO 9001:2015, ISO 14001:2015, ISO 45001:2018)
  * @param {string} description - La description de la situation
  * @returns {Promise<Object>} - Le résultat structuré du diagnostic
@@ -62,39 +60,31 @@ Si aucune non-conformité n'est détectée, renvoie un tableau vide pour non_con
 Si tout est conforme, score = 100. Assure-toi que le JSON est valide sans commentaires.`;
 
     try {
-        const response = await anthropic.messages.create({
-            model: 'claude-3-sonnet-20240229',
-            max_tokens: 1800,
-            messages: [
-                {
-                    role: 'user',
-                    content: prompt,
-                },
-            ],
-        });
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-        // Extraction du contenu texte de la réponse
-        let content = response.content[0].text;
+        const result = await model.generateContent(prompt);
+        const response = result.response;
+        let content = response.text();
 
         // Nettoyer le JSON si enveloppé dans des balises markdown
         content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
         // Parser le JSON
-        const result = JSON.parse(content);
+        const parsedResult = JSON.parse(content);
 
         // Validation de la structure
-        if (!result || typeof result.score !== 'number') {
+        if (!parsedResult || typeof parsedResult.score !== 'number') {
             throw new SyntaxError('Structure JSON invalide: score manquant');
         }
 
-        return result;
+        return parsedResult;
     } catch (error) {
-        // Gestion des erreurs spécifiques
-        if (error.status === 401) {
-            throw new Error('ANTHROPIC_AUTH_ERROR: Clé API invalide');
+        // Gestion des erreurs spécifiques de Gemini
+        if (error.message?.includes('API key')) {
+            throw new Error('GEMINI_AUTH_ERROR: Clé API invalide');
         }
-        if (error.status === 429) {
-            throw new Error('ANTHROPIC_RATE_LIMIT: Trop de requêtes');
+        if (error.message?.includes('rate limit') || error.message?.includes('quota')) {
+            throw new Error('GEMINI_RATE_LIMIT: Trop de requêtes');
         }
         if (error instanceof SyntaxError) {
             throw new Error('JSON_PARSE_ERROR: Réponse invalide de l\'API');

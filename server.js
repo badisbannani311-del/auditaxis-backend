@@ -103,16 +103,16 @@ app.use((err, req, res, next) => {
         });
     }
 
-    // Erreur Anthropic 401
-    if (err.status === 401 || err.message?.includes('ANTHROPIC_AUTH_ERROR')) {
+    // Erreur Gemini 401
+    if (err.status === 401 || err.message?.includes('GEMINI_AUTH_ERROR')) {
         return res.status(401).json({
             error: 'AUTH_ERROR',
             message: 'Erreur d\'authentification avec le service d\'analyse',
         });
     }
 
-    // Erreur Anthropic 429
-    if (err.status === 429 || err.message?.includes('ANTHROPIC_RATE_LIMIT')) {
+    // Erreur Gemini 429
+    if (err.status === 429 || err.message?.includes('GEMINI_RATE_LIMIT')) {
         return res.status(429).json({
             error: 'RATE_LIMIT',
             message: 'Trop de requêtes vers le service d\'analyse. Veuillez réessayer plus tard.',
