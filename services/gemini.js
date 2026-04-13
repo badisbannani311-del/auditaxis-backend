@@ -10,54 +10,67 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
  * @returns {Promise<Object>} - Le résultat structuré du diagnostic
  */
 async function analyserDiagnostic(norme, description) {
-    const prompt = `Tu es un expert en audit QSE (Qualité, Sécurité, Environnement). Analyse la situation suivante selon la norme ${norme}.
+    const prompt = `Tu es un auditeur QSE expert certifié, spécialisé dans les normes ISO 9001:2015, ISO 14001:2015 et ISO 45001:2018.
+
+NORME À ANALYSER: ${norme}
 
 SITUATION DE L'ENTREPRISE:
 ${description}
 
-INSTRUCTIONS:
-1. Analyse cette situation selon les exigences de la norme ${norme}
-2. Identifie les non-conformités (NC) majeures et mineures
-3. Identifie les points de conformité
-4. Propose des recommandations priorisées
+INSTRUCTIONS STRICTES:
 
-RÈGLES DE GRAVITÉ:
-- Articles 4-7 (Contexte, Leadership, Planification, Support) = MAJEURE si non-conforme
-- Articles 8-10 (Opération, Évaluation, Amélioration) = MINEURE si non-conforme
+1. RÔLE ET MÉTHODE:
+   - Agis comme un auditeur certifié rigoureux et impartial
+   - Pour CHAQUE élément de la description, identifie l'article de la norme applicable (ex: Art. 6.1, Art. 7.2, Art. 8.1)
+   - Statue systématiquement: Conforme / Partiellement conforme / Non conforme
+   - Justifie chaque constat par une référence normative EXPLICITE
 
-Réponds UNIQUEMENT en JSON valide selon ce format exact:
+2. INTERDICTION D'INVENTION:
+   - NE statue JAMAIS sur un élément si la norme ne l'exige pas explicitement
+   - NE crée pas d'exigences absentes de la norme sélectionnée
+   - Si un élément n'est pas couvert par ${norme}, ignore-le purement et simplement
+
+3. RÈGLE DE GRAVITÉ:
+   - MAJEURE: si l'article manquant ou non conforme relève des chapitres 4, 5, 6 ou 7 de la norme (Contexte, Leadership, Planification, Support)
+   - MINEURE: si l'article relève des chapitres 8, 9 ou 10 (Opération, Évaluation, Amélioration)
+
+4. CALCUL DU SCORE:
+   score = ((éléments conformes + 0.5 × éléments partiels) / total des exigences vérifiées) × 100
+   Arrondir à l'entier le plus proche (0-100)
+
+5. FORMAT DE SORTIE OBLIGATOIRE:
+RÉponds UNIQUEMENT avec le JSON suivant, sans markdown, sans texte avant ou après:
 
 {
-  "score": number, // Score global 0-100
+  "score": <integer 0-100>,
   "non_conformites": [
     {
-      "titre": "string", // Titre de la non-conformité
-      "article": "string", // Référence article ISO (ex: "Art. 5.1")
-      "gravite": "MAJEURE|MINEURE",
-      "probleme": "string", // Description du problème
-      "explication": "string", // Explication détaillée
-      "action_corrective": "string" // Action corrective proposée
+      "titre": <string>,
+      "article": <string, ex: "Art. 6.1.2">,
+      "gravite": <"MAJEURE" | "MINEURE">,
+      "probleme": <string, description factuelle>,
+      "explication": <string, citer l'exigence normative exacte de ${norme}>,
+      "action_corrective": <string, action concrète et réalisable>
     }
   ],
   "conformites": [
     {
-      "description": "string", // Description du point conforme
-      "article": "string", // Référence article ISO
-      "statut": "CONFORME|PARTIEL" // Statut de conformité
+      "description": <string, description du point contrôlé>,
+      "article": <string, référence article ISO>,
+      "statut": <"Conforme" | "Partiel">
     }
   ],
   "recommandations": [
     {
-      "action": "string", // Action recommandée
-      "priorite": "URGENT|MOYEN|LONG", // Priorité
-      "benefice": "string" // Bénéfice attendu
+      "action": <string, action recommandée>,
+      "priorite": <"URGENT" | "MOYEN" | "LONG_TERME">,
+      "benefice": <string, bénéfice attendu>
     }
-  ],
-  "resume": "string" // Résumé global de l'analyse (2-3 phrases)
+  ]
 }
 
-Si aucune non-conformité n'est détectée, renvoie un tableau vide pour non_conformites.
-Si tout est conforme, score = 100. Assure-toi que le JSON est valide sans commentaires.`;
+N.B.: Si aucune non-conformité n'est détectée, renvoie un tableau vide pour non_conformites.
+Assure-toi que le JSON est STRICTEMENT valide sans commentaires ni texte supplémentaire.`;
 
     try {
         const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });

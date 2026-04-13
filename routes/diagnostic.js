@@ -11,7 +11,7 @@ const NORMES_VALIDES = [
 
 /**
  * POST /api/diagnostic
- * Analyse un diagnostic QSE avec l'API Anthropic
+ * Analyse un diagnostic QSE avec l'API Gemini
  */
 router.post('/', async (req, res, next) => {
     try {
