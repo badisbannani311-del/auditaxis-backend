@@ -10,8 +10,10 @@ const PORT = process.env.PORT || 3001;
 // Configuration CORS
 const corsOptions = {
     origin: [
-        'https://auditaxisqse.netlify.app',
+        'https://auditaxis-frontend.vercel.app',
+        'https://auditaxis-qse.com',
         'http://localhost:8000',
+        'http://localhost:3000',
         'http://127.0.0.1:8000',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
