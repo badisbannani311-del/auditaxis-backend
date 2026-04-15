@@ -27,7 +27,7 @@ app.use(cors({
 app.use(express.json());
 
 // ─────────────────────────────────────────────
-// RATE LIMITERS (SÉCURITÉ)
+// SÉCURITÉ (RATE LIMITING)
 // ─────────────────────────────────────────────
 
 const globalLimiter = rateLimit({
@@ -43,13 +43,13 @@ app.use(globalLimiter);
 const diagnosticLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
-    message: { error: 'RATE_LIMIT_STRICT', message: 'Limite diagnostic atteinte. Réessayez dans 15 min.' },
+    message: { error: 'RATE_LIMIT_STRICT', message: 'Limite diagnostic atteinte.' },
     standardHeaders: true,
     legacyHeaders: false,
 });
 
 // ─────────────────────────────────────────────
-// IMPORT ET USAGE DES ROUTES
+// ROUTES API
 // ─────────────────────────────────────────────
 
 const diagnosticRouter = require('./routes/diagnostic');
@@ -59,7 +59,7 @@ app.use('/api/diagnostic', diagnosticLimiter, diagnosticRouter);
 app.use('/api/checklist', checklistRouter);
 
 // ─────────────────────────────────────────────
-// POST /api/contact — FORMULAIRE DE CONTACT
+// POST /api/contact — ENVOI D'EMAIL
 // ─────────────────────────────────────────────
 
 app.post('/api/contact', async (req, res) => {
@@ -68,128 +68,99 @@ app.post('/api/contact', async (req, res) => {
 
     // Validations
     if (!nom || typeof nom !== 'string' || nom.trim().length < 2) {
-        return res.status(400).json({ error: 'NOM_INVALIDE', message: 'Nom requis (min 2 caractères)' });
+        return res.status(400).json({ error: 'NOM_INVALIDE', message: 'Nom requis' });
     }
-    if (!email || typeof email !== 'string' || !EMAIL_REGEX.test(email)) {
+    if (!email || !EMAIL_REGEX.test(email)) {
         return res.status(400).json({ error: 'EMAIL_INVALIDE', message: 'Email invalide' });
     }
-    if (!sujet || typeof sujet !== 'string' || sujet.trim().length < 5) {
-        return res.status(400).json({ error: 'SUJET_INVALIDE', message: 'Sujet requis (min 5 caractères)' });
+    if (!sujet || sujet.trim().length < 5) {
+        return res.status(400).json({ error: 'SUJET_INVALIDE', message: 'Sujet requis' });
     }
-    if (!message || typeof message !== 'string' || message.trim().length < 20) {
-        return res.status(400).json({ error: 'MESSAGE_INVALIDE', message: 'Message requis (min 20 caractères)' });
+    if (!message || message.trim().length < 20) {
+        return res.status(400).json({ error: 'MESSAGE_INVALIDE', message: 'Message requis' });
     }
 
-    // Log console détaillé
-    console.log('═══════════════════════════════════════════');
-    console.log('📧 NOUVEAU MESSAGE DE CONTACT');
-    console.log('  De: ' + nom + ' (' + email + ')');
-    console.log('  Entreprise: ' + (company || 'Non renseignée'));
-    console.log('  Sujet: ' + sujet);
-    console.log('  Message: ' + message);
-    console.log('  Date: ' + new Date().toISOString());
-    console.log('═══════════════════════════════════════════');
+    console.log('📧 Message de ' + nom + ' (' + email + ') — Sujet: ' + sujet);
 
     // Vérification SMTP
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        console.warn('⚠️ SMTP non configuré — message enregistré uniquement en console');
+        console.warn('⚠️ SMTP non configuré');
         return res.json({ success: true, message: 'Message envoyé avec succès' });
     }
 
-    // Envoi email en arrière-plan (non-bloquant pour l'utilisateur)
+    // Envoi asynchrone (non-bloquant)
     (async () => {
         try {
             const transporter = nodemailer.createTransport({
                 service: 'gmail',
                 auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
             });
-
             const emailTo = process.env.EMAIL_TO || process.env.EMAIL_USER;
 
-            // Email à l'administrateur
+            // Notification Admin
             await transporter.sendMail({
                 from: '"AuditAxis QSE" <' + process.env.EMAIL_USER + '>',
                 replyTo: email,
                 to: emailTo,
                 subject: '[AuditAxis] ' + sujet,
-                html: `<h2>Nouveau message de contact</h2>` +
-                      `<p><b>Nom:</b> ${nom}</p>` +
-                      `<p><b>Email:</b> ${email}</p>` +
-                      (company ? `<p><b>Entreprise:</b> ${company}</p>` : '') +
-                      `<p><b>Sujet:</b> ${sujet}</p>` +
-                      `<p><b>Message:</b><br>${message.replace(/\n/g, '<br>')}</p>`,
+                html: `<h2>Nouveau message</h2><p><b>Nom:</b> ${nom}</p><p><b>Email:</b> ${email}</p><p><b>Message:</b><br>${message.replace(/\n/g, '<br>')}</p>`,
             });
 
-            // Email de confirmation à l'expéditeur
+            // Confirmation Expéditeur
             await transporter.sendMail({
                 from: '"AuditAxis QSE" <' + process.env.EMAIL_USER + '>',
                 to: email,
                 subject: 'Message reçu — AuditAxis QSE',
-                html: `<h2>Merci, ${nom} !</h2>` +
-                      `<p>Nous avons bien reçu votre message et reviendrons vers vous rapidement.</p>` +
-                      `<p><b>Sujet :</b> ${sujet}</p>`,
+                html: `<h2>Merci, ${nom} !</h2><p>Nous avons bien reçu votre message.</p>`,
             });
 
-            console.log('✅ Emails envoyés avec succès');
-        } catch (error) {
-            console.error('❌ Erreur envoi email:', error.message);
+            console.log('✅ Emails envoyés');
+        } catch (e) {
+            console.error('❌ Erreur email:', e.message);
         }
     })();
 
-    // Réponse immédiate au frontend
     res.json({ success: true, message: 'Message envoyé avec succès' });
 });
 
 // ─────────────────────────────────────────────
-// ROUTES DE SANTÉ ET INFOS
+// ROUTES DE SANTÉ
 // ─────────────────────────────────────────────
 
 app.get('/api/health', (req, res) => {
-    res.json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        version: '1.0.0',
-        email: !!(process.env.EMAIL_USER && process.env.EMAIL_PASS),
+    res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(), 
+        uptime: process.uptime(), 
+        version: '1.0.0' 
     });
 });
 
 app.get('/', (req, res) => {
-    res.json({
-        name: 'AuditAxis QSE Backend',
-        version: '1.0.0',
-        endpoints: {
-            health: '/api/health',
-            diagnostic: '/api/diagnostic',
-            checklist: '/api/checklist',
-            contact: '/api/contact',
-        },
-    });
+    res.json({ name: 'AuditAxis QSE Backend', version: '1.0.0' });
 });
 
 // ─────────────────────────────────────────────
-// GESTION DES ERREURS (404 & Global)
+// GESTIONNAIRES D'ERREURS
 // ─────────────────────────────────────────────
 
 app.use((req, res) => {
-    res.status(404).json({ error: 'ROUTE_NON_TROUVEE', message: 'Route non trouvée', path: req.path });
+    res.status(404).json({ error: 'ROUTE_NON_TROUVEE', message: 'Route non trouvée' });
 });
 
 app.use((err, req, res, next) => {
     console.error('❌ Erreur:', err);
-    if (err.status === 401) return res.status(401).json({ error: 'AUTH_ERROR', message: 'Erreur auth IA' });
-    if (err.status === 429) return res.status(429).json({ error: 'RATE_LIMIT', message: 'Trop de requêtes IA' });
-    res.status(err.status || 500).json({ error: 'ERREUR_SERVEUR', message: 'Erreur interne' });
+    if (err.status === 401) return res.status(401).json({ error: 'AUTH_ERROR' });
+    if (err.status === 429) return res.status(429).json({ error: 'RATE_LIMIT' });
+    res.status(err.status || 500).json({ error: 'ERREUR_SERVEUR' });
 });
 
 // ─────────────────────────────────────────────
-// DÉMARRAGE DU SERVEUR
+// DÉMARRAGE
 // ─────────────────────────────────────────────
 
 app.listen(PORT, () => {
-    console.log('🚀 Serveur AuditAxis QSE démarré sur le port ' + PORT);
-    console.log('🔧 Environnement: ' + (process.env.NODE_ENV || 'development'));
-    console.log('📧 SMTP: ' + (process.env.EMAIL_USER ? '✅ configuré' : '⚠️ non configuré'));
+    console.log('🚀 Serveur démarré sur le port ' + PORT);
 });
 
 module.exports = app;
