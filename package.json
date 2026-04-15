@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
-  "dependencies": {
+ "nodemailer": "^8.0.5"
     "@google/generative-ai": "^0.24.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
