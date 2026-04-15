@@ -1,3 +1,6 @@
+Voici le code complet et nettoyé de votre fichier server.js, débarrassé des numéros de ligne et des sauts de ligne intempestifs. Vous pouvez le copier-coller directement :
+
+JavaScript
 require('dotenv').config();
 
 const express = require('express');
