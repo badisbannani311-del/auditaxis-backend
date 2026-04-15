@@ -1,4 +1,3 @@
-JavaScript
 require('dotenv').config();
 
 const express = require('express');
@@ -220,5 +219,3 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
-
-
