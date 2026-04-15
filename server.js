@@ -9,7 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ─────────────────────────────────────────────
-// CORS — uniquement le frontend autorisé
+// CONFIGURATION CORS
 // ─────────────────────────────────────────────
 
 app.use(cors({
@@ -18,18 +18,16 @@ app.use(cors({
         'https://auditaxis-qse.com',
         'http://localhost:8000',
         'http://localhost:3000',
-        'http://127.0.0.1:8000',
     ],
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Accept'],
     credentials: true,
 }));
 
-app.options('*', cors());
 app.use(express.json());
 
 // ─────────────────────────────────────────────
-// RATE LIMITERS
+// LIMITATION DU DÉBIT (RATE LIMIT)
 // ─────────────────────────────────────────────
 
 const globalLimiter = rateLimit({
@@ -51,7 +49,7 @@ const diagnosticLimiter = rateLimit({
 });
 
 // ─────────────────────────────────────────────
-// Import des routes
+// ROUTES
 // ─────────────────────────────────────────────
 
 const diagnosticRouter = require('./routes/diagnostic');
@@ -61,7 +59,7 @@ app.use('/api/diagnostic', diagnosticLimiter, diagnosticRouter);
 app.use('/api/checklist', checklistRouter);
 
 // ─────────────────────────────────────────────
-// POST /api/contact — Envoi d'email avec Nodemailer
+// CONTACT / ENVOI D'EMAIL
 // ─────────────────────────────────────────────
 
 app.post('/api/contact', async (req, res) => {
@@ -83,72 +81,46 @@ app.post('/api/contact', async (req, res) => {
 
     console.log('📧 Message de ' + nom + ' (' + email + ') — Sujet: ' + sujet);
 
-    // Si SMTP non configuré → réponse succès sans envoi
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
         console.warn('⚠️ SMTP non configuré — email non envoyé');
-        return res.json({
-            success: true,
-            message: 'Message reçu (SMTP non configuré sur Render)',
-        });
+        return res.json({ success: true, message: 'Message reçu (SMTP non configuré)' });
     }
 
     try {
         const transporter = nodemailer.createTransport({
             service: 'gmail',
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
+            auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
         });
 
         const emailTo = process.env.EMAIL_TO || process.env.EMAIL_USER;
 
-        // Email à l'admin
+        // Email vers l'administrateur
         await transporter.sendMail({
             from: '"AuditAxis QSE" <' + process.env.EMAIL_USER + '>',
             replyTo: email,
             to: emailTo,
             subject: '[AuditAxis] ' + sujet,
-            html: '<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">' +
-                '<h2 style="color:#1e5f8c;border-bottom:2px solid #2e8b57;padding-bottom:10px;">Nouveau message de contact</h2>' +
-                '<table style="width:100%;border-collapse:collapse;margin:20px 0;">' +
-                '<tr><td style="padding:8px;font-weight:bold;color:#1e5f8c;width:140px;">Nom</td><td style="padding:8px;">' + nom + '</td></tr>' +
-                '<tr><td style="padding:8px;font-weight:bold;color:#1e5f8c;">Email</td><td style="padding:8px;">' + email + '</td></tr>' +
-                (company ? '<tr><td style="padding:8px;font-weight:bold;color:#1e5f8c;">Entreprise</td><td style="padding:8px;">' + company + '</td></tr>' : '') +
-                '<tr><td style="padding:8px;font-weight:bold;color:#1e5f8c;">Date</td><td style="padding:8px;">' + new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Algiers' }) + '</td></tr>' +
-                '</table>' +
-                '<h3 style="color:#1e5f8c;">Message</h3>' +
-                '<div style="background:#f4f6f9;padding:15px;border-left:4px solid #2e8b57;border-radius:4px;">' +
-                '<p style="white-space:pre-wrap;line-height:1.6;">' + message + '</p>' +
-                '</div></div>',
+            html: `<h2>Nouveau message de contact</h2><p><b>Nom:</b> ${nom}</p><p><b>Email:</b> ${email}</p>${company ? `<p><b>Entreprise:</b> ${company}</p>` : ''}<p><b>Message:</b><br>${message.replace(/\n/g, '<br>')}</p>`,
         });
 
-        // Email de confirmation à l'expéditeur
+        // Email de confirmation pour l'expéditeur
         await transporter.sendMail({
             from: '"AuditAxis QSE" <' + process.env.EMAIL_USER + '>',
             to: email,
-            subject: '✅ Message reçu — AuditAxis QSE',
-            html: '<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">' +
-                '<h2 style="color:#2e8b57;">Merci, ' + nom + ' !</h2>' +
-                '<p>Nous avons reçu votre message et vous répondrons sous 24h.</p>' +
-                '<div style="background:#f4f6f9;padding:15px;border-left:4px solid #1e5f8c;border-radius:4px;margin:20px 0;">' +
-                '<strong>Sujet :</strong> <em>' + sujet + '</em></div>' +
-                '<p>L\'équipe <strong>AuditAxis QSE</strong></p></div>',
+            subject: 'Message reçu — AuditAxis QSE',
+            html: `<h2>Merci, ${nom} !</h2><p>Nous avons bien reçu votre message.</p><p><b>Sujet :</b> ${sujet}</p>`,
         });
 
-        console.log('✅ Emails envoyés avec succès');
+        console.log('✅ Emails envoyés');
         res.json({ success: true, message: 'Message envoyé avec succès' });
     } catch (error) {
-        console.error('❌ Erreur envoi email:', error.message);
-        res.status(500).json({
-            error: 'EMAIL_SEND_FAILED',
-            message: 'Impossible d\'envoyer votre message. Réessayez plus tard.',
-        });
+        console.error('❌ Erreur email:', error.message);
+        res.status(500).json({ error: 'EMAIL_SEND_FAILED', message: "Impossible d'envoyer le message." });
     }
 });
 
 // ─────────────────────────────────────────────
-// Route de santé
+// SANTÉ ET ÉTAT DU SERVEUR
 // ─────────────────────────────────────────────
 
 app.get('/api/health', (req, res) => {
@@ -161,60 +133,40 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Route racine
 app.get('/', (req, res) => {
     res.json({
         name: 'AuditAxis QSE Backend',
         version: '1.0.0',
-        endpoints: {
-            health: '/api/health',
-            diagnostic: '/api/diagnostic',
-            checklist: '/api/checklist',
-            contact: '/api/contact',
+        endpoints: { 
+            health: '/api/health', 
+            diagnostic: '/api/diagnostic', 
+            checklist: '/api/checklist', 
+            contact: '/api/contact' 
         },
     });
 });
 
 // ─────────────────────────────────────────────
-// 404 + Gestionnaire d'erreurs
+// GESTION DES ERREURS
 // ─────────────────────────────────────────────
 
 app.use((req, res) => {
-    res.status(404).json({
-        error: 'ROUTE_NON_TROUVEE',
-        message: 'Route non trouvée',
-        path: req.path,
-    });
+    res.status(404).json({ error: 'ROUTE_NON_TROUVEE', message: 'Route non trouvée', path: req.path });
 });
 
 app.use((err, req, res, next) => {
     console.error('❌ Erreur:', err);
-
-    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-        return res.status(400).json({ error: 'JSON_INVALIDE', message: 'JSON invalide' });
-    }
-
-    if (err.status === 401 || err.message?.includes('GEMINI_AUTH_ERROR')) {
-        return res.status(401).json({ error: 'AUTH_ERROR', message: "Erreur d'authentification IA" });
-    }
-
-    if (err.status === 429 || err.message?.includes('GEMINI_RATE_LIMIT')) {
-        return res.status(429).json({ error: 'RATE_LIMIT', message: 'Trop de requêtes IA' });
-    }
-
-    res.status(err.status || 500).json({
-        error: 'ERREUR_SERVEUR',
-        message: process.env.NODE_ENV === 'production' ? 'Une erreur est survenue' : err.message,
-    });
+    if (err.status === 401) return res.status(401).json({ error: 'AUTH_ERROR', message: 'Erreur auth IA' });
+    if (err.status === 429) return res.status(429).json({ error: 'RATE_LIMIT', message: 'Trop de requêtes IA' });
+    res.status(err.status || 500).json({ error: 'ERREUR_SERVEUR', message: 'Erreur interne' });
 });
 
 // ─────────────────────────────────────────────
-// Démarrage
+// DÉMARRAGE
 // ─────────────────────────────────────────────
 
 app.listen(PORT, () => {
-    console.log('🚀 Serveur AuditAxis QSE démarré sur le port ' + PORT);
-    console.log('🔧 Environnement: ' + (process.env.NODE_ENV || 'development'));
+    console.log('🚀 Serveur démarré sur port ' + PORT);
     console.log('📧 SMTP: ' + (process.env.EMAIL_USER ? '✅' : '⚠️ non configuré'));
 });
 
